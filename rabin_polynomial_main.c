@@ -44,6 +44,11 @@
 #include <errno.h>
 #include <limits.h>
 
+#ifdef __SDSCC__
+#include <ff.h>
+#include <sds_lib.h>
+#endif
+
 //File for creating a command line application for the rabin polynomial library
 
 void print_usage() {
@@ -107,71 +112,111 @@ void close_file_if_open(FILE *file_to_close) {
         fclose(file_to_close);
 }
 
-int main(int argc, char **argv) {
-    
-    if(argc < 2) { //No file name provided!
-        print_usage();
-        return -1;
-    }
-    
-    FILE *bin_out=NULL;
+
+////////////////////////////////////////////////////////////////////////////////////////////
+void Check_error(int Error, const char * Message)
+{
+  if (Error)
+  {
+    fputs(Message, stderr);
+    exit(EXIT_FAILURE);
+  }
+}
+
+void Exit_with_error(void)
+{
+  perror(NULL);
+  exit(EXIT_FAILURE);
+}
+
+unsigned char * Allocate(int Size)
+{
+  unsigned char * Frame = (unsigned char *)
+#ifdef __SDSCC__
+      sds_alloc(Size);
+#else
+      malloc(Size);
+#endif
+  Check_error(Frame == NULL, "Could not allocate memory.\n");
+
+  return Frame;
+}
+
+void Free(unsigned char * Frame)
+{
+#ifdef __SDSCC__
+  sds_free(Frame);
+#else
+  free(Frame);
+#endif
+}
+
+void Load_data(unsigned char * Data)
+{
+  unsigned int Size = 10 * 960 * 540;
+
+#ifdef __SDSCC__
+  FIL File;
+  unsigned int Bytes_read;
+
+  FRESULT Result = f_open(&File, "Input.bin", FA_READ);
+  Check_error(Result != FR_OK, "Could not open input file.");
+
+  Result = f_read(&File, Data, Size, &Bytes_read);
+  Check_error(Result != FR_OK || Bytes_read != Size, "Could not read input file.");
+
+  Check_error(f_close(&File) != FR_OK, "Could not close input file.");
+#else
+  FILE * File = fopen("C:/Users/ylxiao/workspace/HW7_2a/src/Input.bin", "rb");
+  if (File == NULL)
+    Exit_with_error();
+
+  if (fread(Data, 1, Size, File) != Size)
+    Exit_with_error();
+
+  if (fclose(File) != 0)
+    Exit_with_error();
+#endif
+}
+
+void Store_data(const char * Filename, unsigned char * Data, unsigned int Size)
+{
+#ifdef __SDSCC__
+  FIL File;
+  unsigned int Bytes_written;
+
+  FRESULT Result = f_open(&File, Filename, FA_WRITE | FA_CREATE_ALWAYS);
+  Check_error(Result != FR_OK, "Could not open output file.");
+
+  Result = f_write(&File, Data, Size, &Bytes_written);
+  Check_error(Result != FR_OK || Bytes_written != Size, "Could not write output file.");
+
+  Check_error(f_close(&File) != FR_OK, "Could not close output file.");
+#else
+  FILE * File = fopen(Filename, "wb");
+  if (File == NULL)
+    Exit_with_error();
+
+  if (fwrite(Data, 1, Size, File) != Size)
+    Exit_with_error();
+
+  if (fclose(File) != 0)
+    Exit_with_error();
+#endif
+}
+
+
+int main() {
+	FILE *bin_out=NULL;
+
     int i;
-    
-    //Scan every option but last one(file name)
-    for(i=1;i<argc-1;i++) {
-        if(strcmp(argv[i], "-w") == 0) {
-            rabin_sliding_window_size=get_uintval_from_arg(argc,i,argv,RAB_POLYNOMIAL_MIN_WIN_SIZE,RAB_POLYNOMIAL_MAX_WIN_SIZE);
-            if(rabin_sliding_window_size > 0)
-                i++;
-            else
-                return -1; //Illegal value, we are done!
-        } else if(strcmp(argv[i],"-m") == 0) {
-            rabin_polynomial_min_block_size=get_uintval_from_arg(argc-1,i,argv,1,UINT_MAX); 
-            //May eventually actually add a limit here someday
-            
-            if(rabin_polynomial_min_block_size > 0) 
-                i++;
-            else 
-                return -1;
-            
-        } else if(strcmp(argv[i],"-x") == 0) {
-            rabin_polynomial_max_block_size=get_uintval_from_arg(argc-1,i,argv,1,UINT_MAX); 
-            if(rabin_polynomial_max_block_size > 0) 
-                i++;
-            else 
-                return -1;
-        } else if(strcmp(argv[i],"-x") == 0) {
-            rabin_polynomial_max_block_size=get_uintval_from_arg(argc-1,i,argv,1,UINT_MAX); 
-            if(rabin_polynomial_max_block_size > 0)
-                i++;
-            else 
-                return -1;
-        } else if(strcmp(argv[i],"-a") == 0) {
-            rabin_polynomial_average_block_size=get_uintval_from_arg(argc-1,i,argv,1,UINT_MAX);
-            if(rabin_polynomial_average_block_size > 0)
-                i++;
-            else
-                return -1;
-        } else if(strcmp(argv[i], "-o") == 0) {
-            if(i+1 < argc-1 ) {
-                i++;
-                bin_out=fopen(argv[i],"wb+");
-                if(bin_out == NULL) {
-                    fprintf(stderr,"Could not open file %s for writing, error code is %d!\n",argv[i],errno);
-                }
-            } else {
-                fprintf(stderr,"Must specify file to output to.\n");
-                print_usage();
-                return -1;
-            }
-        }
-        
-        else {//Usage is wrong
-            print_usage();
-            close_file_if_open(bin_out);
-            return -1;
-        }
-        
+    //rabin_sliding_window_size is from 17 to 63
+    rabin_sliding_window_size=17;
+
+    bin_out=fopen("C:/Users/ylxiao/workspace/Project01_cdc/src/Output.txt","wb+");
+
+    if(bin_out == NULL) {
+    	fprintf(stderr,"Could not open file %s for writing\n","Output.bin");
     }
     
     if(!check_arg_sanity()) {
@@ -180,10 +225,10 @@ int main(int argc, char **argv) {
         return -1;
     }
     
-    FILE *input_file=fopen(argv[argc-1], "r+");
+    FILE *input_file=fopen("C:/Users/ylxiao/workspace/Project01_cdc/src/Input.bin", "r+");
     
     if(input_file == NULL) {
-        fprintf(stderr, "Could not open file %s for reading, error code %d!\n",argv[argc-1],errno);
+        fprintf(stderr, "Could not open file %s for reading\n","Input.bin");
         close_file_if_open(bin_out);
         return -1;
     }
@@ -197,7 +242,6 @@ int main(int argc, char **argv) {
     } else {
             print_rabin_poly_list_to_file(stdout,head);
     }
-
     free_rabin_fingerprint_list(head);
 
     return 0;

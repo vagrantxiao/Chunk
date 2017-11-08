@@ -178,15 +178,14 @@ struct rabin_polynomial *gen_new_polynomial(struct rabin_polynomial *tail, uint6
 int write_rabin_fingerprints_to_binary_file(FILE *file,struct rabin_polynomial *head) {
     
     struct rabin_polynomial *poly=head;
-    
-    while(poly != NULL) {
+
+    while(poly != NULL){
         size_t ret_val=fwrite(poly, sizeof(struct rabin_polynomial), 1, file);
-        
         if(ret_val == 0) {
             fprintf(stderr, "Could not write rabin polynomials to file.");
             return -1;
         }
-        
+        printf("poly->start=%d\n", poly->start);
         poly=poly->next_polynomial;
     }
     
@@ -239,7 +238,6 @@ void free_rabin_fingerprint_list(struct rabin_polynomial *head) {
 struct rabin_polynomial *get_file_rabin_polys(FILE *file_to_read) {
     
     initialize_rabin_polynomial_defaults();
-    
     struct rab_block_info *block=NULL;
     char *file_data=malloc(RAB_FILE_READ_BUF_SIZE);
     
@@ -249,12 +247,13 @@ struct rabin_polynomial *get_file_rabin_polys(FILE *file_to_read) {
     }
     
     ssize_t bytes_read=fread(file_data,1,RAB_FILE_READ_BUF_SIZE,file_to_read);
-    
+    printf("sb=%d",bytes_read);
     while(bytes_read != 0) {
         block=read_rabin_block(file_data,bytes_read,block);
         bytes_read=fread(file_data,1,RAB_FILE_READ_BUF_SIZE,file_to_read);
     }
-    
+
+
     free(file_data);
     struct rabin_polynomial *head=block->head;
     free(block);
